@@ -7,7 +7,7 @@ import plotly.express as px
 # Configuración de la página
 st.set_page_config(page_title="Liga Torreznitos", layout="wide")
 
-st.title("🏀 Dashboard Oficial Liga Torreznitos")
+st.title("🏀 Estadísticas Liga Torreznitos")
 st.markdown("Análisis y simulación de Playoffs (50.000 iteraciones) basados en rendimiento histórico.")
 
 # --- CONSTANTES FIJAS DE LA LIGA ---
@@ -202,7 +202,7 @@ with tab1:
             if i % (NUM_SIMULACIONES // 10) == 0:
                 prog = int((i / NUM_SIMULACIONES) * 100)
                 prog_bar.progress(prog)
-                status.text(f"Calculando multiversos... {prog}%")
+                status.text(f"Calculando probabilidades... {prog}%")
 
         prog_bar.empty()
         status.empty()
@@ -237,7 +237,7 @@ with tab1:
 
 # --- TAB 2: EVOLUCIÓN CLASIFICACIÓN ---
 with tab2:
-    st.subheader("📈 Trayectoria Real en la Clasificación")
+    st.subheader("Trayectoria en la Clasificación")
     st.markdown("Observa las rachas y caídas de cada equipo a lo largo de las 26 jornadas ya jugadas.")
     
     equipos_seleccionados = st.multiselect("Filtrar equipos:", list(clasificacion_actual.keys()), default=["Strava Palencia", "Foster's Rivas Sureste", "CB Perales Nuit", "Mahle Baltanás"])
@@ -253,8 +253,8 @@ with tab2:
 
 # --- TAB 3: PUNTOS POR JORNADA ---
 with tab3:
-    st.subheader("⚔️ Balance Ofensivo y Defensivo Real")
-    st.markdown("Compara los puntos anotados y recibidos de cada equipo basado en el registro oficial.")
+    st.subheader("Balance ofensivo y defensivo")
+    st.markdown("Compara los puntos anotados y recibidos de cada equipo.")
     
     equipo_a_ver = st.selectbox("Selecciona un equipo:", list(clasificacion_actual.keys()))
     
@@ -265,9 +265,9 @@ with tab3:
     diferencia_media = media_anotados - media_recibidos
     
     col1, col2, col3 = st.columns(3)
-    col1.metric("🔥 Media Anotada", f"{media_anotados:.1f} pts")
-    col2.metric("🛡️ Media Recibida", f"{media_recibidos:.1f} pts")
-    col3.metric("⚖️ Balance Promedio", f"{diferencia_media:+.1f} pts")
+    col1.metric("Media Anotada", f"{media_anotados:.1f} pts")
+    col2.metric("Media Recibida", f"{media_recibidos:.1f} pts")
+    col3.metric("Balance Promedio", f"{diferencia_media:+.1f} pts")
     
     st.markdown("---")
     
