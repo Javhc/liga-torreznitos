@@ -8,7 +8,7 @@ import plotly.express as px
 st.set_page_config(page_title="Liga Torreznitos", layout="wide")
 
 st.title("🏀 Estadísticas Liga Torreznitos")
-st.markdown("Análisis y simulación de Playoffs con selector de modelo.")
+st.markdown("Análisis y simulación de Playoffs con selector de modelo predictivo.")
 
 # --- CONSTANTES FIJAS ---
 NUM_SIMULACIONES = 50000
@@ -132,7 +132,7 @@ partidos_restantes = [
 ]
 
 # INTERFAZ POR PESTAÑAS
-tab1, tab2, tab3 = st.tabs(["Simulación Playoffs", "Evolución Clasificación", "Puntos por Jornada"])
+tab1, tab2, tab3 = st.tabs(["Simulación Playoffs", "Evolución Clasificación", "Estadísticas Avanzadas"])
 
 # --- TAB 1: SIMULACIÓN ---
 with tab1:
@@ -144,17 +144,14 @@ with tab1:
     
     local_gana_empate = st.sidebar.checkbox("En caso de empate, gana el Local", value=True)
 
-    # LÓGICA DE CÁLCULO DE MEDIAS SEGÚN MODELO
     def calcular_medias_modelo(tipo):
         medias = {}
         for eq in clasificacion_actual.keys():
-            partidos = [x[0] for x in dict_historico[eq]] # Sacar solo puntos anotados
-            if tipo == "Montecarlo (Toda la temporada)":
+            partidos = [x[0] for x in dict_historico[eq]]
+            if tipo == "Montecarlo (Con medias y desviación estándar)":
                 medias[eq] = (np.mean(partidos), np.std(partidos))
             else:
-                # Estado de forma: últimos 10
                 u10 = partidos[-10:]
-                # Pesos: 1 para los 5 primeros de la racha, 2 para los 5 últimos
                 pesos = [1, 1, 1, 1, 1, 2, 2, 2, 2, 2]
                 media_ponderada = np.average(u10, weights=pesos)
                 medias[eq] = (media_ponderada, np.std(partidos))
@@ -184,11 +181,12 @@ with tab1:
                 sim[loc]["PTS"] += pts_loc
                 sim[vis]["PTS"] += pts_vis
                 
-            df_sim = pd.DataFrame.from_dict(sim, orient='index').sort_values(by=["V", "PTS"], ascending=[False, False])
-            for pos, (eq, row) in enumerate(df_sim.iterrows(), start=1):
+            # Ordenación nativa de Python (ultrarrápida)
+            ranking = sorted(sim.items(), key=lambda x: (x[1]["V"], x[1]["PTS"]), reverse=True)
+            for pos, (eq, datos_eq) in enumerate(ranking, start=1):
                 stats_finales[eq]["pos"].append(pos)
-                stats_finales[eq]["vic"].append(row["V"])
-                stats_finales[eq]["pts"].append(row["PTS"])
+                stats_finales[eq]["vic"].append(datos_eq["V"])
+                stats_finales[eq]["pts"].append(datos_eq["PTS"])
                 
             if i % (NUM_SIMULACIONES // 5) == 0:
                 prog_bar.progress(int((i / NUM_SIMULACIONES) * 100))
@@ -224,16 +222,138 @@ with tab2:
         fig_evo.update_yaxes(autorange="reversed", tickmode="linear", dtick=1)
         st.plotly_chart(fig_evo, use_container_width=True)
 
-# --- TAB 3: PUNTOS ---
+# --- TAB 3: PUNTOS Y MÉTRICAS AVANZADAS ---
 with tab3:
-    st.subheader("Balance ofensivo y defensivo")
-    eq_ver = st.selectbox("Selecciona un equipo:", list(clasificacion_actual.keys()))
+    st.subheader("Métricas de rendimiento e historial")
+    eq_ver = st.selectbox("Selecciona un equipo para el gráfico:", list(clasificacion_actual.keys()))
+    
+    # --- 1. PROCESAMIENTO DEL EQUIPO SELECCIONADO (Gráfica y KPIs) ---
     df_eq = df_historico[df_historico["Equipo"] == eq_ver].copy()
-    m_a, m_r = df_eq["Anotados"].mean(), df_eq["Recibidos"].mean()
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Media Anotada", f"{m_a:.1f} pts"); col2.metric("Media Recibida", f"{m_r:.1f} pts"); col3.metric("Balance Promedio", f"{m_a - m_r:+.1f} pts")
+    
+    m_a = df_eq["Anotados"].mean()
+    m_r = df_eq["Recibidos"].mean()
+    std_a = df_eq["Anotados"].std() 
+    
+    df_eq["Margen"] = df_eq["Anotados"] - df_eq["Recibidos"]
+    victorias_por_poco = len(df_eq[(df_eq["Margen"] > 0) & (df_eq["Margen"] < 5)])
+    derrotas_por_poco = len(df_eq[(df_eq["Margen"] < 0) & (df_eq["Margen"] > -5)])
+    
+    # Máximos y mínimos globales por jornada
+    max_jornada = df_historico.groupby("Jornada")["Anotados"].max()
+    min_jornada = df_historico.groupby("Jornada")["Anotados"].min()
+    
+    veces_mejor = sum(df_eq.apply(lambda row: row["Anotados"] == max_jornada[row["Jornada"]], axis=1))
+    veces_peor = sum(df_eq.apply(lambda row: row["Anotados"] == min_jornada[row["Jornada"]], axis=1))
+    
+    st.markdown(f"#### Balance General: {eq_ver}")
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Media Anotada", f"{m_a:.1f} pts")
+    c2.metric("Media Recibida", f"{m_r:.1f} pts")
+    c3.metric("Diferencial", f"{m_a - m_r:+.1f} pts")
+    c4.metric("Desviación Estándar", f"{std_a:.1f} pts")
+    
+    st.markdown("#### Datos de clutch y MVP")
+    c5, c6, c7, c8 = st.columns(4)
+    c5.metric("Mejor de la Jornada", f"{veces_mejor} veces")
+    c6.metric("Peor de la Jornada", f"{veces_peor} veces")
+    c7.metric("Victorias <5 pts", f"{victorias_por_poco} partidos")
+    c8.metric("Derrotas <5 pts", f"{derrotas_por_poco} partidos")
+    
+    st.markdown("---")
+    
+    # GRÁFICA DE PUNTOS
     df_plot = df_eq.melt(id_vars=["Jornada"], value_vars=["Anotados", "Recibidos"], var_name="Tipo", value_name="Puntos")
     fig_pts = px.bar(df_plot, x="Jornada", y="Puntos", color="Tipo", barmode="group", text="Puntos", color_discrete_map={"Anotados": "#1f77b4", "Recibidos": "#d62728"})
-    fig_pts.add_hline(y=m_a, line_dash="dot", line_color="#1f77b4"); fig_pts.add_hline(y=m_r, line_dash="dot", line_color="#d62728")
-    fig_pts.update_traces(textposition='outside'); fig_pts.update_yaxes(range=[0, df_eq[["Anotados", "Recibidos"]].max().max() * 1.15])
+    fig_pts.add_hline(y=m_a, line_dash="dot", line_color="#1f77b4")
+    fig_pts.add_hline(y=m_r, line_dash="dot", line_color="#d62728")
+    fig_pts.update_traces(textposition='outside')
+    fig_pts.update_yaxes(range=[0, df_eq[["Anotados", "Recibidos"]].max().max() * 1.15])
     st.plotly_chart(fig_pts, use_container_width=True)
+    
+    st.markdown("---")
+    
+    # --- 2. TABLA COMPARATIVA GLOBAL DE TODOS LOS EQUIPOS ---
+    st.subheader("Comparativa global de otras métricas")
+    st.markdown("Haz clic en el título de cualquier columna para ordenar a los equipos. Descubre quién es el más dominante, el más regular o quién ha tenido más suerte.")
+    
+    metricas_todas = []
+    for equipo in clasificacion_actual.keys():
+        df_t = df_historico[df_historico["Equipo"] == equipo].copy()
+        
+        # Básicos
+        m_a_t = df_t["Anotados"].mean()
+        m_r_t = df_t["Recibidos"].mean()
+        std_a_t = df_t["Anotados"].std()
+        
+        # Márgenes
+        df_t["Margen"] = df_t["Anotados"] - df_t["Recibidos"]
+        v_poco_t = len(df_t[(df_t["Margen"] > 0) & (df_t["Margen"] < 5)])
+        d_poco_t = len(df_t[(df_t["Margen"] < 0) & (df_t["Margen"] > -5)])
+        palizas_favor = len(df_t[df_t["Margen"] >= 20])
+        
+        # Tops
+        v_mejor_t = sum(df_t.apply(lambda row: row["Anotados"] == max_jornada[row["Jornada"]], axis=1))
+        
+        # Rachas y Forma
+        ultimos_5 = df_t.tail(5)
+        v_ultimos_5 = ultimos_5["Victoria"].sum()
+        d_ultimos_5 = 5 - v_ultimos_5
+        forma_str = f"{v_ultimos_5}-{d_ultimos_5}"
+        
+        # Calcular Racha Actual (ej: V3, D2)
+        racha_actual = 0
+        tipo_racha = None
+        for v in reversed(df_t["Victoria"].tolist()):
+            if tipo_racha is None:
+                tipo_racha = v
+                racha_actual = 1
+            elif v == tipo_racha:
+                racha_actual += 1
+            else:
+                break
+        racha_str = f"{'V' if tipo_racha == 1 else 'D'}{racha_actual}"
+        
+        # Factor Suerte (Victorias Esperadas - Pitagóricas)
+        # Convertimos a float para evitar el error de "overflow" al elevar a 10
+        pts_f = float(df_t["Anotados"].sum())
+        pts_c = float(df_t["Recibidos"].sum())
+        victorias_reales = df_t["Victoria"].sum()
+        
+        if pts_f == 0 and pts_c == 0:
+            victorias_esperadas = 0
+        else:
+            victorias_esperadas = (pts_f**10 / (pts_f**10 + pts_c**10)) * JORNADAS_JUGADAS
+            
+        suerte = victorias_reales - victorias_esperadas
+        
+        metricas_todas.append({
+            "Equipo": equipo,
+            "Media Anotada": m_a_t,
+            "Media Recibida": m_r_t,
+            "Diferencial": m_a_t - m_r_t,
+            "Desv. Estándar": std_a_t,
+            "Forma (U5)": forma_str,
+            "Racha": racha_str,
+            "V. Paliza (>20p)": palizas_favor,
+            "V. Sufridas (<5p)": v_poco_t,
+            "MVP Jornada": v_mejor_t,
+            "Factor Suerte": suerte # Positivo = Suerte, Negativo = Mala suerte
+        })
+        
+    df_metricas_global = pd.DataFrame(metricas_todas).sort_values(by="Diferencial", ascending=False).reset_index(drop=True)
+    df_metricas_global.index += 1
+    
+    # Mostrar tabla con mapa de calor
+    st.dataframe(
+        df_metricas_global.style.format({
+            "Media Anotada": "{:.1f}",
+            "Media Recibida": "{:.1f}",
+            "Diferencial": "{:+.1f}",
+            "Desv. Estándar": "{:.1f}",
+            "Factor Suerte": "{:+.1f}"
+        }).background_gradient(cmap="Blues", subset=["Media Anotada"])
+          .background_gradient(cmap="Reds", subset=["Media Recibida"])
+          .background_gradient(cmap="RdYlGn", subset=["Diferencial"])
+          .background_gradient(cmap="PRGn", subset=["Factor Suerte"]),
+        use_container_width=True, height=650
+    )
