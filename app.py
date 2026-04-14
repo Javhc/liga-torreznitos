@@ -8,15 +8,15 @@ import plotly.express as px
 st.set_page_config(page_title="Liga Torreznitos", layout="wide")
 
 st.title("🏀 Estadísticas Liga Torreznitos")
-st.markdown("Análisis y simulación de Playoffs (50.000 iteraciones) basados en rendimiento histórico.")
+st.markdown("Análisis y simulación de Playoffs con selector de modelo.")
 
-# --- CONSTANTES FIJAS DE LA LIGA ---
+# --- CONSTANTES FIJAS ---
 NUM_SIMULACIONES = 50000
 PUESTOS_PLAYOFF = 8
 MARGEN_EMPATE = 1.5
 JORNADAS_JUGADAS = 26
 
-# 1. ESTADO ACTUAL DE LA CLASIFICACIÓN (Jornada 26)
+# 1. ESTADO ACTUAL (Jornada 26)
 clasificacion_actual = {
     "Strava Palencia": {"V": 20, "PTS": 2740},
     "Foster's Rivas Sureste": {"V": 18, "PTS": 2274},
@@ -61,16 +61,13 @@ def obtener_datos_reales():
         "Multiópticas Salgado": [(55,94), (107,105), (28,62), (76,101), (48,96), (45,92), (41,61), (72,54), (52,112), (101,127), (72,105), (85,47), (53,78), (54,66), (57,58), (58,110), (41,68), (63,124), (125,103), (93,47), (85,119), (67,66), (103,86), (59,86), (80,105), (70,73)],
         "Mercadona Carnoedo BC": [(85,99), (52,77), (58,112), (89,43), (58,86), (66,103), (70,89), (84,94), (71,79), (57,82), (62,82), (60,68), (42,143), (66,82), (74,35), (60,95), (68,41), (72,84), (44,71), (62,64), (113,81), (60,85), (61,74), (97,68), (82,110), (72,66)]
     }
-    
     lista_df = []
     for eq, jornadas in historico.items():
         for i, (a, r) in enumerate(jornadas, 1):
-            lista_df.append({
-                "Jornada": i, "Equipo": eq, "Anotados": a, "Recibidos": r, "Victoria": 1 if a > r else 0
-            })
-    return pd.DataFrame(lista_df)
+            lista_df.append({"Jornada": i, "Equipo": eq, "Anotados": a, "Recibidos": r, "Victoria": 1 if a > r else 0})
+    return pd.DataFrame(lista_df), historico
 
-df_historico = obtener_datos_reales()
+df_historico, dict_historico = obtener_datos_reales()
 
 # 3. CALCULAR EVOLUCIÓN
 @st.cache_data
@@ -78,13 +75,11 @@ def calcular_evolucion_real(_df):
     evolucion = []
     equipos = _df["Equipo"].unique()
     acumulado = {eq: {"V": 0, "PTS": 0} for eq in equipos}
-    
     for j in range(1, JORNADAS_JUGADAS + 1):
         df_j = _df[_df["Jornada"] == j]
         for _, row in df_j.iterrows():
             acumulado[row["Equipo"]]["V"] += row["Victoria"]
             acumulado[row["Equipo"]]["PTS"] += row["Anotados"]
-        
         ranking = sorted(acumulado.keys(), key=lambda x: (acumulado[x]["V"], acumulado[x]["PTS"]), reverse=True)
         for pos, eq in enumerate(ranking, 1):
             evolucion.append({"Jornada": j, "Equipo": eq, "Posición": pos})
@@ -139,151 +134,106 @@ partidos_restantes = [
 # INTERFAZ POR PESTAÑAS
 tab1, tab2, tab3 = st.tabs(["Simulación Playoffs", "Evolución Clasificación", "Puntos por Jornada"])
 
-# --- TAB 1: SIMULACIÓN DE MONTECARLO PREDICITVO ---
+# --- TAB 1: SIMULACIÓN ---
 with tab1:
     st.sidebar.header("Ajustes de Simulación")
-    
-    st.sidebar.markdown(f"**Iteraciones:** {NUM_SIMULACIONES:,}")
-    st.sidebar.markdown(f"**Puestos de Playoff:** Top {PUESTOS_PLAYOFF}")
-    st.sidebar.markdown(f"**Margen de Empate:** {MARGEN_EMPATE} pts")
+    modelo_elegido = st.sidebar.radio(
+        "Selecciona el modelo predictivo:",
+        ["Montecarlo (Toda la temporada)", "Estado de Forma (Últimas 10J con peso en las 5J finales)"]
+    )
     
     local_gana_empate = st.sidebar.checkbox("En caso de empate, gana el Local", value=True)
 
-    stats_sim = df_historico.groupby("Equipo").agg({"Anotados": ["mean", "std"]})
-    stats_sim.columns = ["media", "desv"]
+    # LÓGICA DE CÁLCULO DE MEDIAS SEGÚN MODELO
+    def calcular_medias_modelo(tipo):
+        medias = {}
+        for eq in clasificacion_actual.keys():
+            partidos = [x[0] for x in dict_historico[eq]] # Sacar solo puntos anotados
+            if tipo == "Montecarlo (Toda la temporada)":
+                medias[eq] = (np.mean(partidos), np.std(partidos))
+            else:
+                # Estado de forma: últimos 10
+                u10 = partidos[-10:]
+                # Pesos: 1 para los 5 primeros de la racha, 2 para los 5 últimos
+                pesos = [1, 1, 1, 1, 1, 2, 2, 2, 2, 2]
+                media_ponderada = np.average(u10, weights=pesos)
+                medias[eq] = (media_ponderada, np.std(partidos))
+        return medias
 
     if st.button("Iniciar Simulación", type="primary"):
         prog_bar = st.progress(0)
         status = st.empty()
-        
         stats_finales = {eq: {"pos": [], "vic": [], "pts": []} for eq in clasificacion_actual}
-        
-        # En una liga virtual no hay bonus local (todos juegan en campo neutral)
-        bonus_local = 0.0 
+        medias_modelo = calcular_medias_modelo(modelo_elegido)
         
         for i in range(NUM_SIMULACIONES):
             sim = {eq: d.copy() for eq, d in clasificacion_actual.items()}
-            
             for loc, vis in partidos_restantes:
-                media_loc = stats_sim.loc[loc, "media"]
-                std_loc = stats_sim.loc[loc, "desv"]
-                media_vis = stats_sim.loc[vis, "media"]
-                std_vis = stats_sim.loc[vis, "desv"]
+                m_loc, s_loc = medias_modelo[loc]
+                m_vis, s_vis = medias_modelo[vis]
+                pts_loc = random.gauss(m_loc, s_loc)
+                pts_vis = random.gauss(m_vis, s_vis)
 
-                # Simulación de anotación sin ventaja de campo
-                pts_loc = random.gauss(media_loc + bonus_local, std_loc)
-                pts_vis = random.gauss(media_vis, std_vis)
-
-                diferencia = abs(pts_loc - pts_vis)
-                
-                # Resolución del partido
-                if diferencia <= MARGEN_EMPATE:
-                    if local_gana_empate:
-                        sim[loc]["V"] += 1
-                    else:
-                        ganador = random.choice([loc, vis])
-                        sim[ganador]["V"] += 1
+                if abs(pts_loc - pts_vis) <= MARGEN_EMPATE:
+                    ganador = loc if local_gana_empate else random.choice([loc, vis])
+                    sim[ganador]["V"] += 1
                 elif pts_loc > pts_vis:
                     sim[loc]["V"] += 1
                 else:
                     sim[vis]["V"] += 1
-
                 sim[loc]["PTS"] += pts_loc
                 sim[vis]["PTS"] += pts_vis
                 
-            df_sim = pd.DataFrame.from_dict(sim, orient='index')
-            df_sim = df_sim.sort_values(by=["V", "PTS"], ascending=[False, False])
-            
+            df_sim = pd.DataFrame.from_dict(sim, orient='index').sort_values(by=["V", "PTS"], ascending=[False, False])
             for pos, (eq, row) in enumerate(df_sim.iterrows(), start=1):
                 stats_finales[eq]["pos"].append(pos)
                 stats_finales[eq]["vic"].append(row["V"])
                 stats_finales[eq]["pts"].append(row["PTS"])
                 
-            if i % (NUM_SIMULACIONES // 10) == 0:
-                prog = int((i / NUM_SIMULACIONES) * 100)
-                prog_bar.progress(prog)
-                status.text(f"Calculando probabilidades... {prog}%")
+            if i % (NUM_SIMULACIONES // 5) == 0:
+                prog_bar.progress(int((i / NUM_SIMULACIONES) * 100))
 
         prog_bar.empty()
-        status.empty()
-
         res = []
         for eq, s in stats_finales.items():
             pos = pd.Series(s["pos"])
             res.append({
-                "Equipo": eq,
-                "V. Actuales": clasificacion_actual[eq]["V"],
+                "Equipo": eq, "V. Actuales": clasificacion_actual[eq]["V"],
                 "Cab. Serie (1-4)": (pos <= 4).mean(),
                 f"Playoff (5-{PUESTOS_PLAYOFF})": ((pos >= 5) & (pos <= PUESTOS_PLAYOFF)).mean(),
                 "Descenso (17-18)": (pos >= 17).mean(),
-                "Pos. Media": pos.mean(),
-                "Proyección (V)": pd.Series(s["vic"]).mean(),
+                "Pos. Media": pos.mean(), "Proyección (V)": pd.Series(s["vic"]).mean(),
                 "Proyección PTS": pd.Series(s["pts"]).mean()
             })
-
         df_res = pd.DataFrame(res).sort_values(by="Pos. Media").reset_index(drop=True)
         df_res.index += 1
+        st.dataframe(df_res.style.format({
+            "V. Actuales": "{:.0f}", "Cab. Serie (1-4)": "{:.1%}", 
+            f"Playoff (5-{PUESTOS_PLAYOFF})": "{:.1%}", "Descenso (17-18)": "{:.1%}", 
+            "Pos. Media": "{:.1f}", "Proyección (V)": "{:.1f}", "Proyección PTS": "{:.0f}"
+        }).background_gradient(cmap="Greens", subset=["Cab. Serie (1-4)", f"Playoff (5-{PUESTOS_PLAYOFF})"])
+          .background_gradient(cmap="Reds", subset=["Descenso (17-18)"]), use_container_width=True, height=650)
 
-        st.dataframe(
-            df_res.style.format({
-                "V. Actuales": "{:.0f}", "Cab. Serie (1-4)": "{:.1%}", 
-                f"Playoff (5-{PUESTOS_PLAYOFF})": "{:.1%}", "Descenso (17-18)": "{:.1%}", 
-                "Pos. Media": "{:.1f}", "Proyección (V)": "{:.1f}", "Proyección PTS": "{:.0f}"
-            }).background_gradient(cmap="Greens", subset=["Cab. Serie (1-4)", f"Playoff (5-{PUESTOS_PLAYOFF})"])
-              .background_gradient(cmap="Reds", subset=["Descenso (17-18)"])
-              .background_gradient(cmap="Blues", subset=["Proyección PTS"]),
-            use_container_width=True, height=650
-        )
-
-# --- TAB 2: EVOLUCIÓN CLASIFICACIÓN ---
+# --- TAB 2: EVOLUCIÓN ---
 with tab2:
-    st.subheader("Trayectoria en la Clasificación")
-    st.markdown("Observa las rachas y caídas de cada equipo a lo largo de las 26 jornadas ya jugadas.")
-    
-    equipos_seleccionados = st.multiselect("Filtrar equipos:", list(clasificacion_actual.keys()), default=["Strava Palencia", "Foster's Rivas Sureste", "CB Perales Nuit", "Mahle Baltanás"])
-    
-    df_filtrado = df_evolucion[df_evolucion["Equipo"].isin(equipos_seleccionados)]
-    
-    if not df_filtrado.empty:
-        fig_evo = px.line(df_filtrado, x="Jornada", y="Posición", color="Equipo", markers=True,
-                          title="Posición al final de cada Jornada")
-        fig_evo.update_yaxes(autorange="reversed", tickmode="linear", tick0=1, dtick=1)
-        fig_evo.update_xaxes(tickmode="linear", tick0=1, dtick=1)
+    st.subheader("Trayectoria en la clasificación")
+    equipos_sel = st.multiselect("Filtrar equipos:", list(clasificacion_actual.keys()), default=["Strava Palencia", "CB Perales Nuit"])
+    df_filt = df_evolucion[df_evolucion["Equipo"].isin(equipos_sel)]
+    if not df_filt.empty:
+        fig_evo = px.line(df_filt, x="Jornada", y="Posición", color="Equipo", markers=True)
+        fig_evo.update_yaxes(autorange="reversed", tickmode="linear", dtick=1)
         st.plotly_chart(fig_evo, use_container_width=True)
 
-# --- TAB 3: PUNTOS POR JORNADA ---
+# --- TAB 3: PUNTOS ---
 with tab3:
     st.subheader("Balance ofensivo y defensivo")
-    st.markdown("Compara los puntos anotados y recibidos de cada equipo.")
-    
-    equipo_a_ver = st.selectbox("Selecciona un equipo:", list(clasificacion_actual.keys()))
-    
-    df_equipo = df_historico[df_historico["Equipo"] == equipo_a_ver].copy()
-    
-    media_anotados = df_equipo["Anotados"].mean()
-    media_recibidos = df_equipo["Recibidos"].mean()
-    diferencia_media = media_anotados - media_recibidos
-    
+    eq_ver = st.selectbox("Selecciona un equipo:", list(clasificacion_actual.keys()))
+    df_eq = df_historico[df_historico["Equipo"] == eq_ver].copy()
+    m_a, m_r = df_eq["Anotados"].mean(), df_eq["Recibidos"].mean()
     col1, col2, col3 = st.columns(3)
-    col1.metric("Media Anotada", f"{media_anotados:.1f} pts")
-    col2.metric("Media Recibida", f"{media_recibidos:.1f} pts")
-    col3.metric("Balance Promedio", f"{diferencia_media:+.1f} pts")
-    
-    st.markdown("---")
-    
-    df_plot = df_equipo.melt(id_vars=["Jornada"], value_vars=["Anotados", "Recibidos"], 
-                             var_name="Tipo", value_name="Puntos")
-    
-    fig_pts = px.bar(df_plot, x="Jornada", y="Puntos", color="Tipo", barmode="group",
-                     text="Puntos", color_discrete_map={"Anotados": "#1f77b4", "Recibidos": "#d62728"})
-    
-    fig_pts.add_hline(y=media_anotados, line_dash="dot", line_color="#1f77b4")
-    fig_pts.add_hline(y=media_recibidos, line_dash="dot", line_color="#d62728")
-    
-    fig_pts.update_traces(textposition='outside')
-    fig_pts.update_xaxes(tickmode="linear", tick0=1, dtick=1)
-    
-    max_pts = df_equipo[["Anotados", "Recibidos"]].max().max()
-    fig_pts.update_yaxes(range=[0, max_pts * 1.15])
-    
+    col1.metric("Media Anotada", f"{m_a:.1f} pts"); col2.metric("Media Recibida", f"{m_r:.1f} pts"); col3.metric("Balance Promedio", f"{m_a - m_r:+.1f} pts")
+    df_plot = df_eq.melt(id_vars=["Jornada"], value_vars=["Anotados", "Recibidos"], var_name="Tipo", value_name="Puntos")
+    fig_pts = px.bar(df_plot, x="Jornada", y="Puntos", color="Tipo", barmode="group", text="Puntos", color_discrete_map={"Anotados": "#1f77b4", "Recibidos": "#d62728"})
+    fig_pts.add_hline(y=m_a, line_dash="dot", line_color="#1f77b4"); fig_pts.add_hline(y=m_r, line_dash="dot", line_color="#d62728")
+    fig_pts.update_traces(textposition='outside'); fig_pts.update_yaxes(range=[0, df_eq[["Anotados", "Recibidos"]].max().max() * 1.15])
     st.plotly_chart(fig_pts, use_container_width=True)
