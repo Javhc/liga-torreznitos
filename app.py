@@ -7,38 +7,17 @@ import plotly.express as px
 # Configuración de la página
 st.set_page_config(page_title="Liga Torreznitos", layout="wide")
 
-st.title("🏀 Estadísticas Liga Torreznitos")
-st.markdown("Análisis y simulación de Playoffs con selector de modelo predictivo.")
+st.title("🏀 Liga Torreznitos")
+st.markdown("Análisis avanzado y simulación de Playoffs.")
 
 # --- CONSTANTES FIJAS ---
 NUM_SIMULACIONES = 50000
 PUESTOS_PLAYOFF = 8
 MARGEN_EMPATE = 1.5
-JORNADAS_JUGADAS = 26
+EXPONENTE_SUERTE = 4.1 # Ajustado matemáticamente para las palizas de la Liga Torreznitos
+JORNADA_MAX_REAL = 26
 
-# 1. ESTADO ACTUAL (Jornada 26)
-clasificacion_actual = {
-    "Strava Palencia": {"V": 20, "PTS": 2740},
-    "Foster's Rivas Sureste": {"V": 18, "PTS": 2274},
-    "CB Perales Nuit": {"V": 17, "PTS": 2259},
-    "Mahle Baltanás": {"V": 17, "PTS": 2252},
-    "Ron Negrita Badalona": {"V": 16, "PTS": 2352},
-    "Chupa-Chups Magaluf": {"V": 15, "PTS": 2324},
-    "Disney Burgos": {"V": 15, "PTS": 2185},
-    "CUPRA Lantadilla": {"V": 15, "PTS": 2165},
-    "San Miguel Carabanchel": {"V": 15, "PTS": 2100},
-    "Banco Sinentender": {"V": 14, "PTS": 2109},
-    "Oliva Virgen Extra CB Andujar": {"V": 12, "PTS": 2103},
-    "INDITEX Vallekas": {"V": 12, "PTS": 1871},
-    "La Rosa Nostra": {"V": 10, "PTS": 1996},
-    "HSNVillamuriel": {"V": 9, "PTS": 2101},
-    "Marlboro Dueñas": {"V": 9, "PTS": 1935},
-    "Soria Natural": {"V": 8, "PTS": 1770},
-    "Multiópticas Salgado": {"V": 6, "PTS": 1788},
-    "Mercadona Carnoedo BC": {"V": 6, "PTS": 1785}
-}
-
-# 2. BASE DE DATOS REAL (J1 a J26)
+# 1. BASE DE DATOS REAL (J1 a J26)
 @st.cache_data
 def obtener_datos_reales():
     historico = {
@@ -69,13 +48,48 @@ def obtener_datos_reales():
 
 df_historico, dict_historico = obtener_datos_reales()
 
-# 3. CALCULAR EVOLUCIÓN
+# 2. RECONSTRUCCIÓN DEL CALENDARIO PASADO
+@st.cache_data
+def reconstruir_calendario_pasado(dict_hist):
+    calendario = []
+    for j in range(JORNADA_MAX_REAL):
+        equipos_procesados = set()
+        for eq, resultados in dict_hist.items():
+            if eq in equipos_procesados: continue
+            pts_f, pts_c = resultados[j]
+            for rival, r_resultados in dict_hist.items():
+                if rival == eq or rival in equipos_procesados: continue
+                r_pts_f, r_pts_c = r_resultados[j]
+                if pts_f == r_pts_c and pts_c == r_pts_f:
+                    calendario.append((j + 1, eq, rival))
+                    equipos_procesados.add(eq)
+                    equipos_procesados.add(rival)
+                    break
+    return calendario
+
+calendario_pasado = reconstruir_calendario_pasado(dict_historico)
+
+# 3. CALENDARIO FUTURO (J27 - J34)
+calendario_futuro = [
+    (27, "La Rosa Nostra", "Mahle Baltanás"), (27, "Oliva Virgen Extra CB Andujar", "CUPRA Lantadilla"), (27, "Disney Burgos", "Ron Negrita Badalona"), (27, "Marlboro Dueñas", "Banco Sinentender"), (27, "San Miguel Carabanchel", "Strava Palencia"), (27, "Foster's Rivas Sureste", "CB Perales Nuit"), (27, "Soria Natural", "Chupa-Chups Magaluf"), (27, "INDITEX Vallekas", "Mercadona Carnoedo BC"), (27, "Multiópticas Salgado", "HSNVillamuriel"),
+    (28, "Mahle Baltanás", "Soria Natural"), (28, "HSNVillamuriel", "Marlboro Dueñas"), (28, "Strava Palencia", "Banco Sinentender"), (28, "Ron Negrita Badalona", "Foster's Rivas Sureste"), (28, "INDITEX Vallekas", "Multiópticas Salgado"), (28, "La Rosa Nostra", "San Miguel Carabanchel"), (28, "Mercadona Carnoedo BC", "Oliva Virgen Extra CB Andujar"), (28, "CUPRA Lantadilla", "Disney Burgos"), (28, "CB Perales Nuit", "Chupa-Chups Magaluf"),
+    (29, "Foster's Rivas Sureste", "Mahle Baltanás"), (29, "Oliva Virgen Extra CB Andujar", "La Rosa Nostra"), (29, "Disney Burgos", "Soria Natural"), (29, "Marlboro Dueñas", "Strava Palencia"), (29, "Banco Sinentender", "San Miguel Carabanchel"), (29, "CUPRA Lantadilla", "HSNVillamuriel"), (29, "Multiópticas Salgado", "Mercadona Carnoedo BC"), (29, "CB Perales Nuit", "Ron Negrita Badalona"), (29, "Chupa-Chups Magaluf", "INDITEX Vallekas"),
+    (30, "Mahle Baltanás", "INDITEX Vallekas"), (30, "HSNVillamuriel", "CB Perales Nuit"), (30, "Strava Palencia", "Multiópticas Salgado"), (30, "Marlboro Dueñas", "Ron Negrita Badalona"), (30, "San Miguel Carabanchel", "CUPRA Lantadilla"), (30, "Banco Sinentender", "Foster's Rivas Sureste"), (30, "Soria Natural", "Oliva Virgen Extra CB Andujar"), (30, "Mercadona Carnoedo BC", "La Rosa Nostra"), (30, "Chupa-Chups Magaluf", "Disney Burgos"),
+    (31, "Disney Burgos", "Mahle Baltanás"), (31, "Oliva Virgen Extra CB Andujar", "Marlboro Dueñas"), (31, "Ron Negrita Badalona", "Soria Natural"), (31, "Foster's Rivas Sureste", "San Miguel Carabanchel"), (31, "INDITEX Vallekas", "Banco Sinentender"), (31, "La Rosa Nostra", "Chupa-Chups Magaluf"), (31, "Mercadona Carnoedo BC", "HSNVillamuriel"), (31, "Multiópticas Salgado", "CUPRA Lantadilla"), (31, "CB Perales Nuit", "Strava Palencia"),
+    (32, "Strava Palencia", "Mahle Baltanás"), (32, "HSNVillamuriel", "Oliva Virgen Extra CB Andujar"), (32, "Ron Negrita Badalona", "Multiópticas Salgado"), (32, "Marlboro Dueñas", "Foster's Rivas Sureste"), (32, "San Miguel Carabanchel", "Disney Burgos"), (32, "Banco Sinentender", "Chupa-Chups Magaluf"), (32, "Soria Natural", "INDITEX Vallekas"), (32, "CUPRA Lantadilla", "Mercadona Carnoedo BC"), (32, "CB Perales Nuit", "La Rosa Nostra"),
+    (33, "Mahle Baltanás", "Ron Negrita Badalona"), (33, "Oliva Virgen Extra CB Andujar", "Multiópticas Salgado"), (33, "Marlboro Dueñas", "CB Perales Nuit"), (33, "Foster's Rivas Sureste", "Disney Burgos"), (33, "Soria Natural", "San Miguel Carabanchel"), (33, "INDITEX Vallekas", "CUPRA Lantadilla"), (33, "La Rosa Nostra", "Banco Sinentender"), (33, "Mercadona Carnoedo BC", "Strava Palencia"), (33, "Chupa-Chups Magaluf", "HSNVillamuriel"),
+    (34, "CB Perales Nuit", "Mahle Baltanás"), (34, "Strava Palencia", "Soria Natural"), (34, "Disney Burgos", "La Rosa Nostra"), (34, "Ron Negrita Badalona", "Mercadona Carnoedo BC"), (34, "San Miguel Carabanchel", "Chupa-Chups Magaluf"), (34, "Banco Sinentender", "Oliva Virgen Extra CB Andujar"), (34, "CUPRA Lantadilla", "Marlboro Dueñas"), (34, "Multiópticas Salgado", "Foster's Rivas Sureste"), (34, "HSNVillamuriel", "INDITEX Vallekas")
+]
+
+calendario_total = calendario_pasado + calendario_futuro
+
+# 4. CALCULAR EVOLUCIÓN DE POSICIONES
 @st.cache_data
 def calcular_evolucion_real(_df):
     evolucion = []
     equipos = _df["Equipo"].unique()
     acumulado = {eq: {"V": 0, "PTS": 0} for eq in equipos}
-    for j in range(1, JORNADAS_JUGADAS + 1):
+    for j in range(1, JORNADA_MAX_REAL + 1):
         df_j = _df[_df["Jornada"] == j]
         for _, row in df_j.iterrows():
             acumulado[row["Equipo"]]["V"] += row["Victoria"]
@@ -87,147 +101,198 @@ def calcular_evolucion_real(_df):
 
 df_evolucion = calcular_evolucion_real(df_historico)
 
-# 4. CALENDARIO RESTANTE (J27 - J34)
-partidos_restantes = [
-    ("La Rosa Nostra", "Mahle Baltanás"), ("Oliva Virgen Extra CB Andujar", "CUPRA Lantadilla"),
-    ("Disney Burgos", "Ron Negrita Badalona"), ("Marlboro Dueñas", "Banco Sinentender"),
-    ("San Miguel Carabanchel", "Strava Palencia"), ("Foster's Rivas Sureste", "CB Perales Nuit"),
-    ("Soria Natural", "Chupa-Chups Magaluf"), ("INDITEX Vallekas", "Mercadona Carnoedo BC"),
-    ("Multiópticas Salgado", "HSNVillamuriel"),
-    ("Mahle Baltanás", "Soria Natural"), ("HSNVillamuriel", "Marlboro Dueñas"),
-    ("Strava Palencia", "Banco Sinentender"), ("Ron Negrita Badalona", "Foster's Rivas Sureste"),
-    ("INDITEX Vallekas", "Multiópticas Salgado"), ("La Rosa Nostra", "San Miguel Carabanchel"),
-    ("Mercadona Carnoedo BC", "Oliva Virgen Extra CB Andujar"), ("CUPRA Lantadilla", "Disney Burgos"),
-    ("CB Perales Nuit", "Chupa-Chups Magaluf"),
-    ("Foster's Rivas Sureste", "Mahle Baltanás"), ("Oliva Virgen Extra CB Andujar", "La Rosa Nostra"),
-    ("Disney Burgos", "Soria Natural"), ("Marlboro Dueñas", "Strava Palencia"),
-    ("Banco Sinentender", "San Miguel Carabanchel"), ("CUPRA Lantadilla", "HSNVillamuriel"),
-    ("Multiópticas Salgado", "Mercadona Carnoedo BC"), ("CB Perales Nuit", "Ron Negrita Badalona"),
-    ("Chupa-Chups Magaluf", "INDITEX Vallekas"),
-    ("Mahle Baltanás", "INDITEX Vallekas"), ("HSNVillamuriel", "CB Perales Nuit"),
-    ("Strava Palencia", "Multiópticas Salgado"), ("Marlboro Dueñas", "Ron Negrita Badalona"),
-    ("San Miguel Carabanchel", "CUPRA Lantadilla"), ("Banco Sinentender", "Foster's Rivas Sureste"),
-    ("Soria Natural", "Oliva Virgen Extra CB Andujar"), ("Mercadona Carnoedo BC", "La Rosa Nostra"),
-    ("Chupa-Chups Magaluf", "Disney Burgos"),
-    ("Disney Burgos", "Mahle Baltanás"), ("Oliva Virgen Extra CB Andujar", "Marlboro Dueñas"),
-    ("Ron Negrita Badalona", "Soria Natural"), ("Foster's Rivas Sureste", "San Miguel Carabanchel"),
-    ("INDITEX Vallekas", "Banco Sinentender"), ("La Rosa Nostra", "Chupa-Chups Magaluf"),
-    ("Mercadona Carnoedo BC", "HSNVillamuriel"), ("Multiópticas Salgado", "CUPRA Lantadilla"),
-    ("CB Perales Nuit", "Strava Palencia"),
-    ("Strava Palencia", "Mahle Baltanás"), ("HSNVillamuriel", "Oliva Virgen Extra CB Andujar"),
-    ("Ron Negrita Badalona", "Multiópticas Salgado"), ("Marlboro Dueñas", "Foster's Rivas Sureste"),
-    ("San Miguel Carabanchel", "Disney Burgos"), ("Banco Sinentender", "Chupa-Chups Magaluf"),
-    ("Soria Natural", "INDITEX Vallekas"), ("CUPRA Lantadilla", "Mercadona Carnoedo BC"),
-    ("CB Perales Nuit", "La Rosa Nostra"),
-    ("Mahle Baltanás", "Ron Negrita Badalona"), ("Oliva Virgen Extra CB Andujar", "Multiópticas Salgado"),
-    ("Marlboro Dueñas", "CB Perales Nuit"), ("Foster's Rivas Sureste", "Disney Burgos"),
-    ("Soria Natural", "San Miguel Carabanchel"), ("INDITEX Vallekas", "CUPRA Lantadilla"),
-    ("La Rosa Nostra", "Banco Sinentender"), ("Mercadona Carnoedo BC", "Strava Palencia"),
-    ("Chupa-Chups Magaluf", "HSNVillamuriel"),
-    ("CB Perales Nuit", "Mahle Baltanás"), ("Strava Palencia", "Soria Natural"),
-    ("Disney Burgos", "La Rosa Nostra"), ("Ron Negrita Badalona", "Mercadona Carnoedo BC"),
-    ("San Miguel Carabanchel", "Chupa-Chups Magaluf"), ("Banco Sinentender", "Oliva Virgen Extra CB Andujar"),
-    ("CUPRA Lantadilla", "Marlboro Dueñas"), ("Multiópticas Salgado", "Foster's Rivas Sureste"),
-    ("HSNVillamuriel", "INDITEX Vallekas")
-]
+# ==========================================
+# PALETA DE COLORES FIJA PARA LOS EQUIPOS
+# ==========================================
+# Asignamos un color fijo a cada equipo usando la paleta Alphabet (hasta 26 colores)
+paleta_colores = px.colors.qualitative.Alphabet
+mapa_colores = {eq: paleta_colores[i % len(paleta_colores)] for i, eq in enumerate(dict_historico.keys())}
+
 
 # INTERFAZ POR PESTAÑAS
-tab1, tab2, tab3 = st.tabs(["Simulación Playoffs", "Evolución Clasificación", "Estadísticas Avanzadas"])
+tab1, tab2, tab3 = st.tabs(["Simulaciones", "Evolución Histórica", "Otras estadísticas"])
 
-# --- TAB 1: SIMULACIÓN ---
+# --- TAB 1: MÁQUINA DEL TIEMPO ---
 with tab1:
+    st.sidebar.header("Selecciona Jornada")
+    jornada_referencia = st.sidebar.slider("Ver clasificación simulada desde:", 1, JORNADA_MAX_REAL, JORNADA_MAX_REAL)
+    
+    st.sidebar.markdown("---")
     st.sidebar.header("Ajustes de Simulación")
     modelo_elegido = st.sidebar.radio(
         "Selecciona el modelo predictivo:",
-        ["Montecarlo (Toda la temporada)", "Estado de Forma (Últimas 10J con peso en las 5J finales)"]
+        ["Montecarlo", "Estado de Forma (Últimas 10J con peso en las 5J finales)"]
+    )
+    
+    modo_ejecucion = st.sidebar.radio(
+        "Modo de ejecución:",
+        ["Simular SOLO la Jornada seleccionada", "Simular TODAS las jornadas (50k iteraciones c/u)"]
     )
     
     local_gana_empate = st.sidebar.checkbox("En caso de empate, gana el Local", value=True)
 
-    def calcular_medias_modelo(tipo):
+    def obtener_estado_jornada(j):
+        estado = {}
+        for eq in dict_historico.keys():
+            resultados_hasta_j = dict_historico[eq][:j]
+            wins = sum(1 for a, r in resultados_hasta_j if a > r)
+            pts = sum(a for a, r in resultados_hasta_j)
+            estado[eq] = {"V": wins, "PTS": pts}
+        return estado
+
+    def calcular_medias_modelo(tipo, j_ref):
         medias = {}
-        for eq in clasificacion_actual.keys():
-            partidos = [x[0] for x in dict_historico[eq]]
-            if tipo == "Montecarlo (Con medias y desviación estándar)":
-                medias[eq] = (np.mean(partidos), np.std(partidos))
+        for eq in dict_historico.keys():
+            partidos_completos = [x[0] for x in dict_historico[eq]]
+            partidos_hasta_hoy = partidos_completos[:j_ref]
+            
+            if len(partidos_hasta_hoy) == 0:
+                medias[eq] = (0, 0)
+                continue
+
+            if tipo == "Montecarlo":
+                medias[eq] = (np.mean(partidos_hasta_hoy), np.std(partidos_hasta_hoy) if len(partidos_hasta_hoy) > 1 else 10)
             else:
-                u10 = partidos[-10:]
-                pesos = [1, 1, 1, 1, 1, 2, 2, 2, 2, 2]
+                u10 = partidos_hasta_hoy[-10:]
+                pesos = list(range(1, len(u10) + 1)) 
                 media_ponderada = np.average(u10, weights=pesos)
-                medias[eq] = (media_ponderada, np.std(partidos))
+                medias[eq] = (media_ponderada, np.std(partidos_hasta_hoy) if len(partidos_hasta_hoy) > 1 else 10)
         return medias
 
     if st.button("Iniciar Simulación", type="primary"):
         prog_bar = st.progress(0)
         status = st.empty()
-        stats_finales = {eq: {"pos": [], "vic": [], "pts": []} for eq in clasificacion_actual}
-        medias_modelo = calcular_medias_modelo(modelo_elegido)
         
-        for i in range(NUM_SIMULACIONES):
-            sim = {eq: d.copy() for eq, d in clasificacion_actual.items()}
-            for loc, vis in partidos_restantes:
-                m_loc, s_loc = medias_modelo[loc]
-                m_vis, s_vis = medias_modelo[vis]
-                pts_loc = random.gauss(m_loc, s_loc)
-                pts_vis = random.gauss(m_vis, s_vis)
-
-                if abs(pts_loc - pts_vis) <= MARGEN_EMPATE:
-                    ganador = loc if local_gana_empate else random.choice([loc, vis])
-                    sim[ganador]["V"] += 1
-                elif pts_loc > pts_vis:
-                    sim[loc]["V"] += 1
-                else:
-                    sim[vis]["V"] += 1
-                sim[loc]["PTS"] += pts_loc
-                sim[vis]["PTS"] += pts_vis
+        datos_evolucion_probs = []
+        
+        # Determinar qué jornadas vamos a simular según la opción elegida
+        if modo_ejecucion == "Simular SOLO la Jornada seleccionada":
+            rango_jornadas = [jornada_referencia]
+        else:
+            rango_jornadas = range(1, JORNADA_MAX_REAL + 1)
+            
+        total_pasos = len(rango_jornadas)
+        
+        # Bucle maestro para simular
+        for idx, j_actual in enumerate(rango_jornadas):
+            status.text(f"Calculando posibles escenarios... Jornada {j_actual} ({NUM_SIMULACIONES:,} iteraciones)")
+            
+            stats_finales = {eq: {"pos": [], "vic": [], "pts": []} for eq in dict_historico.keys()}
+            estado_j = obtener_estado_jornada(j_actual)
+            partidos_a_simular = [p for p in calendario_total if p[0] > j_actual]
+            medias_modelo = calcular_medias_modelo(modelo_elegido, j_actual)
+            
+            for i in range(NUM_SIMULACIONES):
+                sim = {eq: d.copy() for eq, d in estado_j.items()}
                 
-            # Ordenación nativa de Python (ultrarrápida)
-            ranking = sorted(sim.items(), key=lambda x: (x[1]["V"], x[1]["PTS"]), reverse=True)
-            for pos, (eq, datos_eq) in enumerate(ranking, start=1):
-                stats_finales[eq]["pos"].append(pos)
-                stats_finales[eq]["vic"].append(datos_eq["V"])
-                stats_finales[eq]["pts"].append(datos_eq["PTS"])
-                
-            if i % (NUM_SIMULACIONES // 5) == 0:
-                prog_bar.progress(int((i / NUM_SIMULACIONES) * 100))
+                for _, loc, vis in partidos_a_simular:
+                    m_loc, s_loc = medias_modelo[loc]
+                    m_vis, s_vis = medias_modelo[vis]
+                    pts_loc = random.gauss(m_loc, s_loc)
+                    pts_vis = random.gauss(m_vis, s_vis)
 
+                    if abs(pts_loc - pts_vis) <= MARGEN_EMPATE:
+                        ganador = loc if local_gana_empate else random.choice([loc, vis])
+                        sim[ganador]["V"] += 1
+                    elif pts_loc > pts_vis:
+                        sim[loc]["V"] += 1
+                    else:
+                        sim[vis]["V"] += 1
+                    sim[loc]["PTS"] += pts_loc
+                    sim[vis]["PTS"] += pts_vis
+                    
+                ranking = sorted(sim.items(), key=lambda x: (x[1]["V"], x[1]["PTS"]), reverse=True)
+                for pos, (eq, datos_eq) in enumerate(ranking, start=1):
+                    stats_finales[eq]["pos"].append(pos)
+                    stats_finales[eq]["vic"].append(datos_eq["V"])
+                    stats_finales[eq]["pts"].append(datos_eq["PTS"])
+            
+            res_jornada = []
+            for eq, s in stats_finales.items():
+                pos = pd.Series(s["pos"])
+                prob_cab_serie = (pos <= 4).mean()
+                prob_playoff = (pos <= PUESTOS_PLAYOFF).mean() 
+                
+                datos_evolucion_probs.append({
+                    "Jornada": j_actual,
+                    "Equipo": eq,
+                    "Prob. Playoff": prob_playoff,
+                    "Prob. Cab. Serie": prob_cab_serie
+                })
+                
+                if j_actual == jornada_referencia:
+                    res_jornada.append({
+                        "Equipo": eq, 
+                        "V. en J"+str(jornada_referencia): estado_j[eq]["V"],
+                        "Cab. Serie (1-4)": prob_cab_serie,
+                        f"Playoff (5-{PUESTOS_PLAYOFF})": ((pos >= 5) & (pos <= PUESTOS_PLAYOFF)).mean(),
+                        "Descenso (17-18)": (pos >= 17).mean(),
+                        "Pos. Media": pos.mean(), 
+                        "Proyección (V)": pd.Series(s["vic"]).mean()
+                    })
+                    
+            if j_actual == jornada_referencia:
+                st.session_state["tabla_principal"] = pd.DataFrame(res_jornada).sort_values(by="Pos. Media").reset_index(drop=True)
+                st.session_state["tabla_principal"].index += 1
+                st.session_state["jornada_simulada"] = jornada_referencia
+                
+            # Actualizar barra de progreso
+            prog_bar.progress(int(((idx + 1) / total_pasos) * 100))
+
+        # Si simulamos todas, guardamos el historial para las gráficas
+        if modo_ejecucion == "Simular TODAS las jornadas (50k iteraciones c/u)":
+            st.session_state["df_probs_historia"] = pd.DataFrame(datos_evolucion_probs)
+            st.success("✅ Simulación completa de todas las jornadas finalizada. Puedes ver las gráficas en la pestaña 2.")
+            
         prog_bar.empty()
-        res = []
-        for eq, s in stats_finales.items():
-            pos = pd.Series(s["pos"])
-            res.append({
-                "Equipo": eq, "V. Actuales": clasificacion_actual[eq]["V"],
-                "Cab. Serie (1-4)": (pos <= 4).mean(),
-                f"Playoff (5-{PUESTOS_PLAYOFF})": ((pos >= 5) & (pos <= PUESTOS_PLAYOFF)).mean(),
-                "Descenso (17-18)": (pos >= 17).mean(),
-                "Pos. Media": pos.mean(), "Proyección (V)": pd.Series(s["vic"]).mean(),
-                "Proyección PTS": pd.Series(s["pts"]).mean()
-            })
-        df_res = pd.DataFrame(res).sort_values(by="Pos. Media").reset_index(drop=True)
-        df_res.index += 1
-        st.dataframe(df_res.style.format({
-            "V. Actuales": "{:.0f}", "Cab. Serie (1-4)": "{:.1%}", 
-            f"Playoff (5-{PUESTOS_PLAYOFF})": "{:.1%}", "Descenso (17-18)": "{:.1%}", 
-            "Pos. Media": "{:.1f}", "Proyección (V)": "{:.1f}", "Proyección PTS": "{:.0f}"
+        status.empty()
+
+    if "tabla_principal" in st.session_state:
+        st.subheader(f"Probabilidades proyectadas desde la Jornada {st.session_state['jornada_simulada']}")
+        st.dataframe(st.session_state["tabla_principal"].style.format({
+            "V. en J"+str(st.session_state["jornada_simulada"]): "{:.0f}", 
+            "Cab. Serie (1-4)": "{:.1%}", 
+            f"Playoff (5-{PUESTOS_PLAYOFF})": "{:.1%}", 
+            "Descenso (17-18)": "{:.1%}", 
+            "Pos. Media": "{:.1f}", 
+            "Proyección (V)": "{:.1f}"
         }).background_gradient(cmap="Greens", subset=["Cab. Serie (1-4)", f"Playoff (5-{PUESTOS_PLAYOFF})"])
           .background_gradient(cmap="Reds", subset=["Descenso (17-18)"]), use_container_width=True, height=650)
+    else:
+        st.info("Haz clic en el botón de arriba para generar las simulaciones.")
 
-# --- TAB 2: EVOLUCIÓN ---
+# --- TAB 2: EVOLUCIÓN HISTÓRICA ---
 with tab2:
-    st.subheader("Trayectoria en la clasificación")
-    equipos_sel = st.multiselect("Filtrar equipos:", list(clasificacion_actual.keys()), default=["Strava Palencia", "CB Perales Nuit"])
+    st.subheader("Trayectoria y evolución de probabilidades")
+    equipos_sel = st.multiselect("Filtrar equipos:", list(dict_historico.keys()), default=["Strava Palencia", "CB Perales Nuit", "Soria Natural"])
+    
     df_filt = df_evolucion[df_evolucion["Equipo"].isin(equipos_sel)]
     if not df_filt.empty:
-        fig_evo = px.line(df_filt, x="Jornada", y="Posición", color="Equipo", markers=True)
+        fig_evo = px.line(df_filt, x="Jornada", y="Posición", color="Equipo", markers=True, title="1. Posición Real a lo largo de la temporada", color_discrete_map=mapa_colores)
         fig_evo.update_yaxes(autorange="reversed", tickmode="linear", dtick=1)
         st.plotly_chart(fig_evo, use_container_width=True)
+    
+    st.markdown("---")
+    
+    if "df_probs_historia" in st.session_state:
+        df_probs = st.session_state["df_probs_historia"]
+        df_probs_filt = df_probs[df_probs["Equipo"].isin(equipos_sel)]
+        
+        fig_play = px.line(df_probs_filt, x="Jornada", y="Prob. Playoff", color="Equipo", markers=True, title="2. Opciones de entrar en Playoff (Top 8)", color_discrete_map=mapa_colores)
+        fig_play.update_layout(yaxis=dict(tickformat=".0%", range=[-0.05, 1.05]))
+        st.plotly_chart(fig_play, use_container_width=True)
+        
+        fig_cab = px.line(df_probs_filt, x="Jornada", y="Prob. Cab. Serie", color="Equipo", markers=True, title="3. Opciones de ser Cabeza de Serie (Top 4)", color_discrete_map=mapa_colores)
+        fig_cab.update_layout(yaxis=dict(tickformat=".0%", range=[-0.05, 1.05]))
+        st.plotly_chart(fig_cab, use_container_width=True)
+    else:
+        st.warning("Para ver las gráficas de probabilidad, selecciona 'Simular TODAS las jornadas' en la pestaña 1 y pulsa iniciar.")
 
-# --- TAB 3: PUNTOS Y MÉTRICAS AVANZADAS ---
+# --- TAB 3: ESTADÍSTICAS AVANZADAS ---
 with tab3:
     st.subheader("Métricas de rendimiento e historial")
-    eq_ver = st.selectbox("Selecciona un equipo para el gráfico:", list(clasificacion_actual.keys()))
+    eq_ver = st.selectbox("Selecciona un equipo para el gráfico:", list(dict_historico.keys()))
     
-    # --- 1. PROCESAMIENTO DEL EQUIPO SELECCIONADO (Gráfica y KPIs) ---
     df_eq = df_historico[df_historico["Equipo"] == eq_ver].copy()
     
     m_a = df_eq["Anotados"].mean()
@@ -238,7 +303,6 @@ with tab3:
     victorias_por_poco = len(df_eq[(df_eq["Margen"] > 0) & (df_eq["Margen"] < 5)])
     derrotas_por_poco = len(df_eq[(df_eq["Margen"] < 0) & (df_eq["Margen"] > -5)])
     
-    # Máximos y mínimos globales por jornada
     max_jornada = df_historico.groupby("Jornada")["Anotados"].max()
     min_jornada = df_historico.groupby("Jornada")["Anotados"].min()
     
@@ -261,8 +325,8 @@ with tab3:
     
     st.markdown("---")
     
-    # GRÁFICA DE PUNTOS
     df_plot = df_eq.melt(id_vars=["Jornada"], value_vars=["Anotados", "Recibidos"], var_name="Tipo", value_name="Puntos")
+    # A este gráfico no le pasamos el mapa de colores porque siempre queremos ver los anotados en azul y los recibidos en rojo
     fig_pts = px.bar(df_plot, x="Jornada", y="Puntos", color="Tipo", barmode="group", text="Puntos", color_discrete_map={"Anotados": "#1f77b4", "Recibidos": "#d62728"})
     fig_pts.add_hline(y=m_a, line_dash="dot", line_color="#1f77b4")
     fig_pts.add_hline(y=m_r, line_dash="dot", line_color="#d62728")
@@ -272,35 +336,29 @@ with tab3:
     
     st.markdown("---")
     
-    # --- 2. TABLA COMPARATIVA GLOBAL DE TODOS LOS EQUIPOS ---
-    st.subheader("Comparativa global de otras métricas")
+    st.subheader("📋 Comparativa global de otras métricas")
     st.markdown("Haz clic en el título de cualquier columna para ordenar a los equipos. Descubre quién es el más dominante, el más regular o quién ha tenido más suerte.")
     
     metricas_todas = []
-    for equipo in clasificacion_actual.keys():
+    for equipo in dict_historico.keys():
         df_t = df_historico[df_historico["Equipo"] == equipo].copy()
         
-        # Básicos
         m_a_t = df_t["Anotados"].mean()
         m_r_t = df_t["Recibidos"].mean()
         std_a_t = df_t["Anotados"].std()
         
-        # Márgenes
         df_t["Margen"] = df_t["Anotados"] - df_t["Recibidos"]
         v_poco_t = len(df_t[(df_t["Margen"] > 0) & (df_t["Margen"] < 5)])
         d_poco_t = len(df_t[(df_t["Margen"] < 0) & (df_t["Margen"] > -5)])
         palizas_favor = len(df_t[df_t["Margen"] >= 20])
         
-        # Tops
         v_mejor_t = sum(df_t.apply(lambda row: row["Anotados"] == max_jornada[row["Jornada"]], axis=1))
         
-        # Rachas y Forma
         ultimos_5 = df_t.tail(5)
         v_ultimos_5 = ultimos_5["Victoria"].sum()
         d_ultimos_5 = 5 - v_ultimos_5
         forma_str = f"{v_ultimos_5}-{d_ultimos_5}"
         
-        # Calcular Racha Actual (ej: V3, D2)
         racha_actual = 0
         tipo_racha = None
         for v in reversed(df_t["Victoria"].tolist()):
@@ -313,8 +371,6 @@ with tab3:
                 break
         racha_str = f"{'V' if tipo_racha == 1 else 'D'}{racha_actual}"
         
-        # Factor Suerte (Victorias Esperadas - Pitagóricas)
-        # Convertimos a float para evitar el error de "overflow" al elevar a 10
         pts_f = float(df_t["Anotados"].sum())
         pts_c = float(df_t["Recibidos"].sum())
         victorias_reales = df_t["Victoria"].sum()
@@ -322,7 +378,7 @@ with tab3:
         if pts_f == 0 and pts_c == 0:
             victorias_esperadas = 0
         else:
-            victorias_esperadas = (pts_f**10 / (pts_f**10 + pts_c**10)) * JORNADAS_JUGADAS
+            victorias_esperadas = (pts_f**EXPONENTE_SUERTE / (pts_f**EXPONENTE_SUERTE + pts_c**EXPONENTE_SUERTE)) * JORNADA_MAX_REAL
             
         suerte = victorias_reales - victorias_esperadas
         
@@ -337,13 +393,12 @@ with tab3:
             "V. Paliza (>20p)": palizas_favor,
             "V. Sufridas (<5p)": v_poco_t,
             "MVP Jornada": v_mejor_t,
-            "Factor Suerte": suerte # Positivo = Suerte, Negativo = Mala suerte
+            "Factor Suerte": suerte 
         })
         
     df_metricas_global = pd.DataFrame(metricas_todas).sort_values(by="Diferencial", ascending=False).reset_index(drop=True)
     df_metricas_global.index += 1
     
-    # Mostrar tabla con mapa de calor
     st.dataframe(
         df_metricas_global.style.format({
             "Media Anotada": "{:.1f}",
