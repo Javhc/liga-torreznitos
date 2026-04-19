@@ -124,7 +124,7 @@ with tab1:
     
     modo_ejecucion = st.sidebar.radio(
         "Modo de ejecución:",
-        ["Simular SOLO la Jornada seleccionada", "Simular TODAS las jornadas (50k iteraciones c/u)"]
+        ["Simular SOLO la Jornada seleccionada", "Simular TODAS las jornadas (10k iteraciones c/u)"]
     )
     
     local_gana_empate = st.sidebar.checkbox("En caso de empate, gana el Local", value=True)
@@ -234,7 +234,7 @@ with tab1:
                 
             prog_bar.progress(int(((idx + 1) / total_pasos) * 100))
 
-        if modo_ejecucion == "Simular TODAS las jornadas (50k iteraciones c/u)":
+        if modo_ejecucion == "Simular TODAS las jornadas (10k iteraciones c/u)":
             st.session_state["df_probs_historia"] = pd.DataFrame(datos_evolucion_probs)
             st.success("✅ Simulación completa de todas las jornadas finalizada. Puedes ver las gráficas en la pestaña 2.")
             
