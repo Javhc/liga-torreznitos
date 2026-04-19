@@ -11,7 +11,7 @@ st.title("🏀 Liga Torreznitos")
 st.markdown("Análisis avanzado y simulación de Playoffs.")
 
 # --- CONSTANTES FIJAS ---
-NUM_SIMULACIONES = 50000
+NUM_SIMULACIONES = 10000
 PUESTOS_PLAYOFF = 8
 MARGEN_EMPATE = 1.5
 EXPONENTE_SUERTE = 4.1 # Ajustado matemáticamente para las palizas de la Liga Torreznitos
