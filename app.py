@@ -8,37 +8,39 @@ import plotly.express as px
 st.set_page_config(page_title="Liga Torreznitos", layout="wide")
 
 st.title("🏀 Liga Torreznitos")
-st.markdown("Análisis avanzado y simulación de Playoffs.")
+st.markdown("Análisis y simulación de Playoffs.")
 
 # --- CONSTANTES FIJAS ---
 NUM_SIMULACIONES = 10000
 PUESTOS_PLAYOFF = 8
 MARGEN_EMPATE = 1.5
-EXPONENTE_SUERTE = 4.1 # Ajustado matemáticamente para las palizas de la Liga Torreznitos
+EXPONENTE_SUERTE = 4.1 
 JORNADA_MAX_REAL = 27
 
 # 1. BASE DE DATOS REAL (J1 a J27)
 @st.cache_data
 def obtener_datos_reales():
     historico = {
-        "Strava Palencia": [(97,96), (64,54), (61,68), (58,100), (106,88), (107,105), (84,106), (141,55), (64,54), (102,74), (122,88), (132,93), (167,51), (119,99), (120,61), (95,60), (160,123), (123,54), (77,116), (130,75), (74,81), (78,77), (118,81), (108,58), (94,116), (108,69), (83,65)],
-        "Foster's Rivas Sureste": [(84,36), (84,77), (84,50), (122,58), (52,69), (78,40), (31,71), (72,92), (108,99), (74,102), (109,59), (71,51), (69,91), (111,60), (83,63), (110,58), (118,91), (53,110), (116,87), (64,62), (94,50), (127,119), (116,102), (85,67), (116,94), (59,70), (119,89)],
+        "Strava Palencia": [(97,96), (107,105), (61,68), (58,100), (106,88), (95,47), (84,106), (141,55), (64,54), (102,74), (122,88), (132,93), (167,51), (119,99), (120,61), (95,60), (160,123), (123,54), (77,116), (130,75), (74,81), (78,77), (118,81), (108,58), (94,116), (108,69), (83,65)],
+        # CORREGIDO J9: Foster's 99 - 108 CUPRA
+        "Foster's Rivas Sureste": [(84,36), (77,52), (84,50), (122,58), (52,69), (78,40), (31,71), (72,92), (99,108), (74,102), (109,59), (71,51), (69,91), (111,60), (83,63), (110,58), (118,91), (53,110), (116,87), (64,62), (94,50), (127,119), (116,102), (85,67), (116,94), (59,70), (119,89)],
         "CB Perales Nuit": [(99,85), (112,78), (91,115), (100,58), (133,62), (124,86), (70,67), (92,31), (107,99), (62,63), (88,49), (75,74), (54,102), (79,81), (58,57), (81,68), (91,118), (81,52), (71,44), (62,113), (68,74), (53,65), (86,103), (126,69), (85,55), (111,71), (89,119)],
         "Mahle Baltanás": [(52,62), (80,103), (64,94), (103,69), (96,48), (47,67), (89,70), (104,51), (120,64), (27,107), (49,88), (109,52), (91,69), (74,67), (101,108), (71,67), (123,160), (65,59), (85,76), (92,75), (119,85), (85,60), (70,46), (86,151), (130,96), (120,109), (85,99)],
-        "Ron Negrita Badalona": [(142,43), (86,71), (112,58), (121,64), (85,90), (118,83), (106,84), (87,46), (112,52), (81,111), (74,123), (51,71), (102,54), (67,74), (89,130), (94,71), (52,66), (78,48), (116,77), (77,96), (74,89), (78,56), (69,80), (80,87), (79,68), (92,79), (75,82)],
+        "Ron Negrita Badalona": [(142,43), (86,71), (112,58), (121,64), (85,90), (118,83), (106,84), (87,46), (112,52), (111,81), (74,123), (51,71), (102,54), (67,74), (89,130), (94,71), (52,66), (78,48), (116,77), (77,96), (74,89), (78,56), (69,80), (80,87), (79,68), (92,79), (75,82)],
         "Chupa-Chups Magaluf": [(82,62), (39,82), (94,64), (64,121), (88,106), (92,45), (67,70), (61,87), (48,100), (105,64), (59,109), (98,97), (143,42), (98,92), (93,92), (83,44), (98,67), (54,123), (103,125), (87,36), (89,74), (119,127), (105,34), (151,86), (110,82), (94,137), (124,85)],
         "Disney Burgos": [(94,55), (85,88), (98,89), (86,58), (60,40), (109,110), (96,108), (46,87), (54,64), (107,27), (103,124), (74,75), (87,32), (110,71), (63,83), (44,83), (68,41), (124,63), (117,53), (75,130), (135,80), (65,53), (74,61), (104,94), (48,50), (59,52), (82,75)],
-        "CUPRA Lantadilla": [(100,95), (71,62), (85,106), (102,93), (104,73), (47,95), (108,57), (51,104), (68,60), (64,105), (124,103), (68,60), (78,53), (91,97), (130,89), (68,81), (103,89), (59,65), (51,65), (36,87), (121,94), (103,36), (81,118), (87,80), (55,85), (70,59), (119,95)],
+        # CORREGIDO J9: Foster's 99 - 108 CUPRA
+        "CUPRA Lantadilla": [(100,95), (71,62), (85,106), (102,93), (104,73), (47,95), (108,57), (51,104), (108,99), (64,105), (124,103), (68,60), (78,53), (91,97), (130,89), (68,81), (103,89), (59,65), (51,65), (36,87), (121,94), (103,36), (81,118), (87,80), (55,85), (70,59), (119,95)],
         "San Miguel Carabanchel": [(96,97), (85,83), (62,28), (60,68), (100,79), (67,47), (108,96), (92,72), (100,48), (76,69), (82,62), (83,93), (69,53), (81,79), (68,48), (71,94), (89,103), (95,72), (76,85), (59,44), (81,113), (66,67), (71,107), (69,126), (115,73), (79,92), (65,83)],
         "Banco Sinentender": [(95,100), (83,85), (68,61), (69,103), (62,133), (110,109), (94,80), (94,84), (80,43), (81,111), (105,72), (77,56), (124,72), (60,111), (89,76), (95,81), (67,98), (52,81), (53,117), (96,77), (94,121), (95,94), (46,70), (68,97), (79,67), (73,70), (69,65)],
-        "Oliva Virgen Extra CB Andujar": [(62,52), (88,85), (50,84), (68,60), (73,104), (103,66), (31,92), (107,71), (50,71), (90,77), (123,74), (97,98), (60,96), (66,54), (61,120), (81,95), (80,115), (110,53), (82,71), (113,62), (80,135), (56,78), (107,71), (58,108), (96,130), (137,94), (95,119)],
+        "Oliva Virgen Extra CB Andujar": [(62,52), (88,85), (50,84), (68,60), (73,104), (103,66), (81,84), (31,92), (50,71), (90,77), (123,74), (97,98), (60,96), (66,54), (61,120), (81,95), (80,115), (110,53), (82,71), (113,62), (80,135), (56,78), (107,71), (58,108), (96,130), (137,94), (95,119)],
         "INDITEX Vallekas": [(72,66), (103,80), (106,85), (101,76), (79,100), (83,118), (71,31), (87,61), (71,50), (63,62), (72,73), (56,77), (32,87), (99,119), (35,74), (79,74), (93,81), (72,95), (71,82), (46,82), (35,94), (77,78), (80,69), (67,85), (50,48), (71,111), (41,71)],
-        "La Rosa Nostra": [(36,84), (61,115), (115,91), (70,74), (90,85), (78,106), (61,41), (116,101), (79,71), (69,76), (73,72), (93,132), (72,124), (71,110), (92,93), (67,71), (115,80), (48,78), (99,56), (82,46), (50,94), (36,103), (81,102), (67,86), (105,80), (69,108), (99,85)],
+        "La Rosa Nostra": [(36,84), (62,71), (115,91), (70,74), (90,85), (78,106), (61,41), (116,101), (79,71), (69,76), (73,72), (93,132), (72,124), (71,110), (92,93), (67,71), (115,80), (48,78), (99,56), (82,46), (50,94), (36,103), (81,102), (67,86), (105,80), (69,108), (99,85)],
         "HSNVillamuriel": [(62,82), (71,86), (50,88), (58,122), (40,60), (106,78), (80,94), (54,72), (99,107), (82,57), (88,122), (93,83), (96,60), (97,91), (108,101), (81,83), (81,93), (76,48), (87,116), (44,59), (81,74), (94,95), (102,81), (94,104), (68,79), (109,120), (66,57)],
         "Marlboro Dueñas": [(66,72), (78,112), (89,98), (93,102), (43,89), (40,78), (84,81), (101,116), (43,80), (127,101), (90,59), (52,109), (51,167), (92,98), (48,68), (83,81), (66,52), (84,72), (56,99), (75,92), (94,35), (135,88), (34,105), (86,59), (73,115), (52,59), (65,69)],
         "Soria Natural": [(43,142), (82,39), (88,50), (74,70), (69,52), (86,124), (57,108), (55,141), (64,120), (77,90), (59,90), (47,85), (53,69), (82,66), (76,89), (74,79), (41,68), (48,76), (65,51), (47,93), (74,68), (88,135), (102,116), (86,67), (67,79), (66,72), (85,124)],
-        "Multiópticas Salgado": [(55,94), (107,105), (28,62), (76,101), (48,96), (45,92), (41,61), (72,54), (52,112), (101,127), (72,105), (85,47), (53,78), (54,66), (57,58), (58,110), (41,68), (63,124), (125,103), (93,47), (85,119), (67,66), (103,86), (59,86), (80,105), (70,73), (57,66)],
-        "Mercadona Carnoedo BC": [(85,99), (52,77), (58,112), (89,43), (58,86), (66,103), (70,89), (84,94), (71,79), (57,82), (62,82), (60,68), (42,143), (66,82), (74,35), (60,95), (68,41), (72,84), (44,71), (62,64), (113,81), (60,85), (61,74), (97,68), (82,110), (72,66), (71,41)]
+        "Multiópticas Salgado": [(55,94), (105,107), (28,62), (76,101), (48,96), (45,92), (41,61), (72,54), (52,112), (101,127), (72,105), (85,47), (53,78), (54,66), (57,58), (58,110), (41,68), (63,124), (125,103), (93,47), (85,119), (67,66), (103,86), (59,86), (80,105), (70,73), (57,66)],
+        "Mercadona Carnoedo BC": [(85,99), (52,77), (58,112), (58,86), (89,43), (66,103), (70,89), (84,94), (71,79), (57,82), (62,82), (60,68), (42,143), (66,82), (74,35), (60,95), (68,41), (72,84), (44,71), (62,64), (113,81), (60,85), (61,74), (97,68), (82,110), (72,66), (71,41)]
     }
     lista_df = []
     for eq, jornadas in historico.items():
@@ -69,7 +71,7 @@ def reconstruir_calendario_pasado(dict_hist):
 
 calendario_pasado = reconstruir_calendario_pasado(dict_historico)
 
-# 3. CALENDARIO FUTURO (J28 - J34) - Jornada 27 eliminada porque ya se ha jugado
+# 3. CALENDARIO FUTURO (J28 - J34)
 calendario_futuro = [
     (28, "Mahle Baltanás", "Soria Natural"), (28, "HSNVillamuriel", "Marlboro Dueñas"), (28, "Strava Palencia", "Banco Sinentender"), (28, "Ron Negrita Badalona", "Foster's Rivas Sureste"), (28, "INDITEX Vallekas", "Multiópticas Salgado"), (28, "La Rosa Nostra", "San Miguel Carabanchel"), (28, "Mercadona Carnoedo BC", "Oliva Virgen Extra CB Andujar"), (28, "CUPRA Lantadilla", "Disney Burgos"), (28, "CB Perales Nuit", "Chupa-Chups Magaluf"),
     (29, "Foster's Rivas Sureste", "Mahle Baltanás"), (29, "Oliva Virgen Extra CB Andujar", "La Rosa Nostra"), (29, "Disney Burgos", "Soria Natural"), (29, "Marlboro Dueñas", "Strava Palencia"), (29, "Banco Sinentender", "San Miguel Carabanchel"), (29, "CUPRA Lantadilla", "HSNVillamuriel"), (29, "Multiópticas Salgado", "Mercadona Carnoedo BC"), (29, "CB Perales Nuit", "Ron Negrita Badalona"), (29, "Chupa-Chups Magaluf", "INDITEX Vallekas"),
@@ -108,7 +110,7 @@ mapa_colores = {eq: paleta_colores[i % len(paleta_colores)] for i, eq in enumera
 
 
 # INTERFAZ POR PESTAÑAS
-tab1, tab2, tab3 = st.tabs(["Simulaciones", "Evolución Histórica", "Otras estadísticas"])
+tab1, tab2, tab3 = st.tabs(["Simulaciones", "Evolución Histórica", "Estadísticas y Clasificación"])
 
 # --- TAB 1: MÁQUINA DEL TIEMPO ---
 with tab1:
@@ -207,13 +209,16 @@ with tab1:
             for eq, s in stats_finales.items():
                 pos = pd.Series(s["pos"])
                 prob_cab_serie = (pos <= 4).mean()
-                prob_playoff = (pos <= PUESTOS_PLAYOFF).mean() 
+                prob_playoff_5_8 = ((pos >= 5) & (pos <= PUESTOS_PLAYOFF)).mean()
+                prob_fuera = (pos > PUESTOS_PLAYOFF).mean()
+                prob_descenso = (pos >= 17).mean()
                 
                 datos_evolucion_probs.append({
                     "Jornada": j_actual,
                     "Equipo": eq,
-                    "Prob. Playoff": prob_playoff,
-                    "Prob. Cab. Serie": prob_cab_serie
+                    "Prob. Playoff": (pos <= PUESTOS_PLAYOFF).mean(),
+                    "Prob. Cab. Serie": prob_cab_serie,
+                    "Prob. Fuera Playoff": prob_fuera
                 })
                 
                 if j_actual == jornada_referencia:
@@ -221,8 +226,9 @@ with tab1:
                         "Equipo": eq, 
                         "V. en J"+str(jornada_referencia): estado_j[eq]["V"],
                         "Cab. Serie (1-4)": prob_cab_serie,
-                        f"Playoff (5-{PUESTOS_PLAYOFF})": ((pos >= 5) & (pos <= PUESTOS_PLAYOFF)).mean(),
-                        "Descenso (17-18)": (pos >= 17).mean(),
+                        f"Playoff (5-{PUESTOS_PLAYOFF})": prob_playoff_5_8,
+                        "Fuera Playoff (>8)": prob_fuera,
+                        "Descenso (17-18)": prob_descenso,
                         "Pos. Media": pos.mean(), 
                         "Proyección (V)": pd.Series(s["vic"]).mean()
                     })
@@ -247,10 +253,12 @@ with tab1:
             "V. en J"+str(st.session_state["jornada_simulada"]): "{:.0f}", 
             "Cab. Serie (1-4)": "{:.1%}", 
             f"Playoff (5-{PUESTOS_PLAYOFF})": "{:.1%}", 
+            "Fuera Playoff (>8)": "{:.1%}",
             "Descenso (17-18)": "{:.1%}", 
             "Pos. Media": "{:.1f}", 
             "Proyección (V)": "{:.1f}"
         }).background_gradient(cmap="Greens", subset=["Cab. Serie (1-4)", f"Playoff (5-{PUESTOS_PLAYOFF})"])
+          .background_gradient(cmap="Oranges", subset=["Fuera Playoff (>8)"])
           .background_gradient(cmap="Reds", subset=["Descenso (17-18)"]), use_container_width=True, height=650)
     else:
         st.info("Haz clic en el botón de arriba para generar las simulaciones.")
@@ -279,60 +287,21 @@ with tab2:
         fig_cab = px.line(df_probs_filt, x="Jornada", y="Prob. Cab. Serie", color="Equipo", markers=True, title="3. Opciones de ser Cabeza de Serie (Top 4)", color_discrete_map=mapa_colores)
         fig_cab.update_layout(yaxis=dict(tickformat=".0%", range=[-0.05, 1.05]))
         st.plotly_chart(fig_cab, use_container_width=True)
+        
+        fig_fuera = px.line(df_probs_filt, x="Jornada", y="Prob. Fuera Playoff", color="Equipo", markers=True, title="4. Opciones de quedar Fuera de Playoff (>8)", color_discrete_map=mapa_colores)
+        fig_fuera.update_layout(yaxis=dict(tickformat=".0%", range=[-0.05, 1.05]))
+        st.plotly_chart(fig_fuera, use_container_width=True)
     else:
         st.warning("Para ver las gráficas de probabilidad, selecciona 'Simular TODAS las jornadas' en la pestaña 1 y pulsa iniciar.")
 
 # --- TAB 3: ESTADÍSTICAS AVANZADAS ---
 with tab3:
-    st.subheader("Métricas de rendimiento e historial")
-    eq_ver = st.selectbox("Selecciona un equipo para el gráfico:", list(dict_historico.keys()))
-    
-    df_eq = df_historico[df_historico["Equipo"] == eq_ver].copy()
-    
-    m_a = df_eq["Anotados"].mean()
-    m_r = df_eq["Recibidos"].mean()
-    std_a = df_eq["Anotados"].std() 
-    
-    df_eq["Margen"] = df_eq["Anotados"] - df_eq["Recibidos"]
-    victorias_por_poco = len(df_eq[(df_eq["Margen"] > 0) & (df_eq["Margen"] < 5)])
-    derrotas_por_poco = len(df_eq[(df_eq["Margen"] < 0) & (df_eq["Margen"] > -5)])
-    
-    max_jornada = df_historico.groupby("Jornada")["Anotados"].max()
-    min_jornada = df_historico.groupby("Jornada")["Anotados"].min()
-    
-    veces_mejor = sum(df_eq.apply(lambda row: row["Anotados"] == max_jornada[row["Jornada"]], axis=1))
-    veces_peor = sum(df_eq.apply(lambda row: row["Anotados"] == min_jornada[row["Jornada"]], axis=1))
-    
-    st.markdown(f"#### Balance General: {eq_ver}")
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Media Anotada", f"{m_a:.1f} pts")
-    c2.metric("Media Recibida", f"{m_r:.1f} pts")
-    c3.metric("Diferencial", f"{m_a - m_r:+.1f} pts")
-    c4.metric("Desviación Estándar", f"{std_a:.1f} pts")
-    
-    st.markdown("#### Datos de clutch y MVP")
-    c5, c6, c7, c8 = st.columns(4)
-    c5.metric("Mejor de la Jornada", f"{veces_mejor} veces")
-    c6.metric("Peor de la Jornada", f"{veces_peor} veces")
-    c7.metric("Victorias <5 pts", f"{victorias_por_poco} partidos")
-    c8.metric("Derrotas <5 pts", f"{derrotas_por_poco} partidos")
-    
-    st.markdown("---")
-    
-    df_plot = df_eq.melt(id_vars=["Jornada"], value_vars=["Anotados", "Recibidos"], var_name="Tipo", value_name="Puntos")
-    fig_pts = px.bar(df_plot, x="Jornada", y="Puntos", color="Tipo", barmode="group", text="Puntos", color_discrete_map={"Anotados": "#1f77b4", "Recibidos": "#d62728"})
-    fig_pts.add_hline(y=m_a, line_dash="dot", line_color="#1f77b4")
-    fig_pts.add_hline(y=m_r, line_dash="dot", line_color="#d62728")
-    fig_pts.update_traces(textposition='outside')
-    fig_pts.update_yaxes(range=[0, df_eq[["Anotados", "Recibidos"]].max().max() * 1.15])
-    st.plotly_chart(fig_pts, use_container_width=True)
-    
-    st.markdown("---")
-    
-    st.subheader("📋 Comparativa global de otras métricas")
-    st.markdown("Haz clic en el título de cualquier columna para ordenar a los equipos. Descubre quién es el más dominante, el más regular o quién ha tenido más suerte.")
+    st.subheader("🏆 Clasificación General Real (Jornada 27)")
     
     metricas_todas = []
+    max_jornada = df_historico.groupby("Jornada")["Anotados"].max()
+    min_jornada = df_historico.groupby("Jornada")["Anotados"].min()
+
     for equipo in dict_historico.keys():
         df_t = df_historico[df_historico["Equipo"] == equipo].copy()
         
@@ -362,7 +331,7 @@ with tab3:
                 racha_actual += 1
             else:
                 break
-        racha_str = f"{'V' if tipo_racha == 1 else 'D'}{racha_actual}"
+        racha_str = f"{'W' if tipo_racha == 1 else 'L'}{racha_actual}"
         
         pts_f = float(df_t["Anotados"].sum())
         pts_c = float(df_t["Recibidos"].sum())
@@ -377,31 +346,69 @@ with tab3:
         
         metricas_todas.append({
             "Equipo": equipo,
+            "V": victorias_reales,
+            "D": JORNADA_MAX_REAL - victorias_reales,
+            "Favor": int(pts_f),
+            "Contra": int(pts_c),
+            "Diferencial": int(pts_f - pts_c),
             "Media Anotada": m_a_t,
             "Media Recibida": m_r_t,
-            "Diferencial": m_a_t - m_r_t,
-            "Desv. Estándar": std_a_t,
-            "Forma (U5)": forma_str,
             "Racha": racha_str,
-            "V. Paliza (>20p)": palizas_favor,
-            "V. Sufridas (<5p)": v_poco_t,
-            "MVP Jornada": v_mejor_t,
             "Factor Suerte": suerte 
         })
         
-    df_metricas_global = pd.DataFrame(metricas_todas).sort_values(by="Diferencial", ascending=False).reset_index(drop=True)
+    df_metricas_global = pd.DataFrame(metricas_todas).sort_values(by=["V", "Diferencial"], ascending=[False, False]).reset_index(drop=True)
     df_metricas_global.index += 1
     
     st.dataframe(
         df_metricas_global.style.format({
             "Media Anotada": "{:.1f}",
             "Media Recibida": "{:.1f}",
-            "Diferencial": "{:+.1f}",
-            "Desv. Estándar": "{:.1f}",
             "Factor Suerte": "{:+.1f}"
-        }).background_gradient(cmap="Blues", subset=["Media Anotada"])
-          .background_gradient(cmap="Reds", subset=["Media Recibida"])
+        }).background_gradient(cmap="Blues", subset=["V", "Favor", "Media Anotada"])
+          .background_gradient(cmap="Reds", subset=["D", "Contra", "Media Recibida"])
           .background_gradient(cmap="RdYlGn", subset=["Diferencial"])
           .background_gradient(cmap="PRGn", subset=["Factor Suerte"]),
-        use_container_width=True, height=650
+        use_container_width=True, height=680
     )
+
+    st.markdown("---")
+    st.subheader("Métricas individuales e historial")
+    eq_ver = st.selectbox("Selecciona un equipo para el gráfico:", list(dict_historico.keys()))
+    
+    df_eq = df_historico[df_historico["Equipo"] == eq_ver].copy()
+    
+    m_a = df_eq["Anotados"].mean()
+    m_r = df_eq["Recibidos"].mean()
+    std_a = df_eq["Anotados"].std() 
+    
+    df_eq["Margen"] = df_eq["Anotados"] - df_eq["Recibidos"]
+    victorias_por_poco = len(df_eq[(df_eq["Margen"] > 0) & (df_eq["Margen"] < 5)])
+    derrotas_por_poco = len(df_eq[(df_eq["Margen"] < 0) & (df_eq["Margen"] > -5)])
+    
+    veces_mejor = sum(df_eq.apply(lambda row: row["Anotados"] == max_jornada[row["Jornada"]], axis=1))
+    veces_peor = sum(df_eq.apply(lambda row: row["Anotados"] == min_jornada[row["Jornada"]], axis=1))
+    
+    st.markdown(f"#### Balance General: {eq_ver}")
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Media Anotada", f"{m_a:.1f} pts")
+    c2.metric("Media Recibida", f"{m_r:.1f} pts")
+    c3.metric("Diferencial", f"{m_a - m_r:+.1f} pts")
+    c4.metric("Desviación Estándar", f"{std_a:.1f} pts")
+    
+    st.markdown("#### Datos de clutch y MVP")
+    c5, c6, c7, c8 = st.columns(4)
+    c5.metric("Mejor de la Jornada", f"{veces_mejor} veces")
+    c6.metric("Peor de la Jornada", f"{veces_peor} veces")
+    c7.metric("Victorias <5 pts", f"{victorias_por_poco} partidos")
+    c8.metric("Derrotas <5 pts", f"{derrotas_por_poco} partidos")
+    
+    st.markdown("---")
+    
+    df_plot = df_eq.melt(id_vars=["Jornada"], value_vars=["Anotados", "Recibidos"], var_name="Tipo", value_name="Puntos")
+    fig_pts = px.bar(df_plot, x="Jornada", y="Puntos", color="Tipo", barmode="group", text="Puntos", color_discrete_map={"Anotados": "#1f77b4", "Recibidos": "#d62728"})
+    fig_pts.add_hline(y=m_a, line_dash="dot", line_color="#1f77b4")
+    fig_pts.add_hline(y=m_r, line_dash="dot", line_color="#d62728")
+    fig_pts.update_traces(textposition='outside')
+    fig_pts.update_yaxes(range=[0, df_eq[["Anotados", "Recibidos"]].max().max() * 1.15])
+    st.plotly_chart(fig_pts, use_container_width=True)
